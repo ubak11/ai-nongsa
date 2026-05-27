@@ -46,7 +46,12 @@ export default async function handler(req, res) {
       imageList: detail.imageList ?? [],
     });
   } catch (error) {
-    console.error('NCPMS error:', error);
-    return res.status(500).json({ error: '조회 중 오류가 발생했습니다.' });
+    const cause = error?.cause;
+    console.error('NCPMS error:', error, 'cause:', cause?.code, cause?.message);
+    return res.status(500).json({
+      error: '조회 중 오류가 발생했습니다.',
+      detail: error?.message,
+      cause: cause?.code ?? cause?.message,
+    });
   }
 }
