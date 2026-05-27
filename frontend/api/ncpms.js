@@ -18,13 +18,11 @@ export default async function handler(req, res) {
     const searchRes = await fetch(
       `https://ncpms.rda.go.kr/npmsAPI/service?apiKey=${apiKey}&serviceCode=SVC01&sickNameKor=${encodeURIComponent(diseaseName)}&startCursor=1&endCursor=5`
     );
-    const rawText = await searchRes.text();
-    let searchData;
-    try { searchData = JSON.parse(rawText); } catch { return res.status(200).json({ _raw: rawText.slice(0, 500) }); }
+    const searchData = await searchRes.json();
     const items = searchData.service?.list ?? [];
 
     if (items.length === 0) {
-      return res.status(200).json({ _raw: rawText.slice(0, 500) });
+      return res.status(200).json(null);
     }
 
     const { sickKey, cropName, sickNameKor, sickNameEng, thumbImg } = items[0];
@@ -48,12 +46,7 @@ export default async function handler(req, res) {
       imageList: detail.imageList ?? [],
     });
   } catch (error) {
-    const cause = error?.cause;
-    console.error('NCPMS error:', error, 'cause:', cause?.code, cause?.message);
-    return res.status(500).json({
-      error: '조회 중 오류가 발생했습니다.',
-      detail: error?.message,
-      cause: cause?.code ?? cause?.message,
-    });
+    console.error('NCPMS error:', error);
+    return res.status(500).json({ error: '조회 중 오류가 발생했습니다.' });
   }
 }
