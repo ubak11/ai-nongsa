@@ -16,7 +16,7 @@ export default async function handler(req, res) {
   try {
     // SVC01: 병명으로 목록 검색
     const searchRes = await fetch(
-      `http://ncpms.rda.go.kr/npmsAPI/service?apiKey=${apiKey}&serviceCode=SVC01&sickNameKor=${encodeURIComponent(diseaseName)}&startCursor=1&endCursor=5`
+      `https://ncpms.rda.go.kr/npmsAPI/service?apiKey=${apiKey}&serviceCode=SVC01&sickNameKor=${encodeURIComponent(diseaseName)}&startCursor=1&endCursor=5`
     );
     const searchData = await searchRes.json();
     const items = searchData.service?.list ?? [];
@@ -29,7 +29,7 @@ export default async function handler(req, res) {
 
     // SVC05: 상세 정보 (증상, 방제법 등)
     const detailRes = await fetch(
-      `http://ncpms.rda.go.kr/npmsAPI/service?apiKey=${apiKey}&serviceCode=SVC05&sickKey=${sickKey}`
+      `https://ncpms.rda.go.kr/npmsAPI/service?apiKey=${apiKey}&serviceCode=SVC05&sickKey=${sickKey}`
     );
     const detailData = await detailRes.json();
     const detail = detailData.service ?? {};
