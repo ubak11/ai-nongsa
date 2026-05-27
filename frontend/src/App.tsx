@@ -5,19 +5,28 @@ import FarmLog from './screens/FarmLog';
 import Report from './screens/Report';
 import Settings from './screens/Settings';
 import BottomNav from './components/BottomNav';
+import { FarmLogEntry, FarmSettings } from './types';
+import { mockFarmLog, mockFarmSettings } from './utils/mockData';
 
 type Tab = 'home' | 'diagnosis' | 'log' | 'report' | 'settings';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
+  const [logEntries, setLogEntries] = useState<FarmLogEntry[]>(mockFarmLog);
+  const [farmSettings, setFarmSettings] = useState<FarmSettings>(mockFarmSettings);
+
+  function handleAddLogEntry(entry: FarmLogEntry) {
+    setLogEntries(prev => [entry, ...prev]);
+    setActiveTab('log');
+  }
 
   const renderScreen = () => {
     switch (activeTab) {
-      case 'home': return <Dashboard />;
-      case 'diagnosis': return <Diagnosis />;
-      case 'log': return <FarmLog />;
+      case 'home': return <Dashboard province={farmSettings.province} district={farmSettings.district} farmerName={farmSettings.farmerName} />;
+      case 'diagnosis': return <Diagnosis onSaveToLog={handleAddLogEntry} />;
+      case 'log': return <FarmLog entries={logEntries} />;
       case 'report': return <Report />;
-      case 'settings': return <Settings />;
+      case 'settings': return <Settings settings={farmSettings} onSave={setFarmSettings} />;
     }
   };
 

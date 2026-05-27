@@ -28,13 +28,17 @@ function weatherIcon(weather: string) {
   return '🌤️';
 }
 
-export default function FarmLog() {
+interface Props {
+  entries: FarmLogEntry[];
+}
+
+export default function FarmLog({ entries }: Props) {
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
 
   const filteredEntries: FarmLogEntry[] =
     activeFilter === 'all'
-      ? mockFarmLog
-      : mockFarmLog.filter((e) => e.cropStage === activeFilter);
+      ? entries
+      : entries.filter((e) => e.cropStage === activeFilter);
 
   function handleAddEntry() {
     alert('새 영농 일지 작성 기능은 준비 중입니다.');

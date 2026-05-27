@@ -122,8 +122,9 @@ export const mockFarmLog: FarmLogEntry[] = [
 
 export const mockFarmSettings: FarmSettings = {
   farmerName: '김지훈',
-  location: '논산시 부적면',
-  cropType: 'strawberry',
+  province: '충청남도',
+  district: '논산시',
+  cropTypes: ['strawberry', 'tomato'],
   cropVariety: '설향',
   plantingDate: '2024-09-15',
   greenhouseArea: 1000,

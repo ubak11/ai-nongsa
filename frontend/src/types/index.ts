@@ -44,10 +44,17 @@ export interface FarmLogEntry {
   diagnosisId?: string;
 }
 
+export interface CropItem {
+  id: string;
+  label: string;
+  emoji: string;
+}
+
 export interface FarmSettings {
   farmerName: string;
-  location: string;
-  cropType: 'strawberry' | 'tomato';
+  province: string;
+  district: string;
+  cropTypes: string[];
   cropVariety: string;
   plantingDate: string;
   greenhouseArea: number;
@@ -58,4 +65,16 @@ export interface PestRisk {
   description: string;
   mainThreat: string;
   preventionTip: string;
+}
+
+export interface NcpmsData {
+  sickKey: string;
+  sickNameKor: string;
+  sickNameEng: string;
+  cropName: string;
+  symptoms: string;
+  developmentCondition: string;
+  preventionMethod: string;
+  thumbImg: string;
+  imageList: Array<{ image: string; imageTitle: string }>;
 }

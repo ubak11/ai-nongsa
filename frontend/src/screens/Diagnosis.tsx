@@ -8,8 +8,35 @@ import {
   History,
   ChevronLeft,
 } from 'lucide-react';
-import { DiagnosisResult } from '../types';
+import { DiagnosisResult, NcpmsData } from '../types';
 import { mockDiagnosisResults } from '../utils/mockData';
+
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+}
+
+function compressImage(file: File): Promise<{ base64: string; mimeType: string }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 1024;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+        else { width = Math.round(width * MAX / height); height = MAX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(url);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      resolve({ base64: dataUrl.split(',')[1], mimeType: 'image/jpeg' });
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
 
 const severityLabel: Record<DiagnosisResult['severity'], string> = {
   low: '낮음',
@@ -37,24 +64,79 @@ function ConfidenceBadge({ value }: { value: number }) {
   );
 }
 
-export default function Diagnosis() {
+interface Props {
+  onSaveToLog: (entry: import('../types').FarmLogEntry) => void;
+}
+
+export default function Diagnosis({ onSaveToLog }: Props) {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<DiagnosisResult | null>(null);
+  const [ncpmsData, setNcpmsData] = useState<NcpmsData | null>(null);
+  const [ncpmsLoading, setNcpmsLoading] = useState(false);
+  const [savedToast, setSavedToast] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  function handleImageSelect(file: File) {
+  async function fetchNcpms(diseaseName: string) {
+    if (!diseaseName || diseaseName === '진단 실패') return;
+    setNcpmsLoading(true);
+    try {
+      const res = await fetch('/api/ncpms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ diseaseName }),
+      });
+      const data = await res.json();
+      setNcpmsData(data ?? null);
+    } catch {
+      setNcpmsData(null);
+    } finally {
+      setNcpmsLoading(false);
+    }
+  }
+
+  async function handleImageSelect(file: File) {
     setSelectedImage(file);
-    setPreviewUrl(URL.createObjectURL(file));
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
     setResult(null);
+    setNcpmsData(null);
     setIsAnalyzing(true);
 
-    setTimeout(() => {
-      const random = mockDiagnosisResults[Math.floor(Math.random() * mockDiagnosisResults.length)];
-      setResult(random);
+    try {
+      const { base64, mimeType } = await compressImage(file);
+      const res = await fetch('/api/diagnose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mimeType }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || '진단 요청 실패');
+      }
+
+      const diagnosis = await res.json();
+      setResult({ ...diagnosis, imageUrl: objectUrl });
+      fetchNcpms(diagnosis.diseaseName);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : '알 수 없는 오류';
+      setResult({
+        id: 'error',
+        imageUrl: objectUrl,
+        diseaseName: '진단 실패',
+        confidence: 0,
+        severity: 'low',
+        description: `진단 중 오류가 발생했습니다: ${msg}`,
+        treatment: '잠시 후 다시 시도해주세요.',
+        pesticide: '해당 없음',
+        concentration: '-',
+        createdAt: new Date().toISOString(),
+      });
+    } finally {
       setIsAnalyzing(false);
-    }, 2500);
+    }
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -66,16 +148,36 @@ export default function Diagnosis() {
     setSelectedImage(null);
     setPreviewUrl(null);
     setResult(null);
+    setNcpmsData(null);
     setIsAnalyzing(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   function handleSaveToLog() {
-    alert('영농 일지에 저장되었습니다.');
+    if (!result) return;
+    onSaveToLog({
+      id: `log-${Date.now()}`,
+      imageUrl: previewUrl ?? result.imageUrl,
+      cropStage: 'flowering',
+      cropStageText: '개화기',
+      weather: '맑음',
+      temperature: 24,
+      humidity: 72,
+      notes: `AI 진단 실시 — ${result.diseaseName} (신뢰도 ${result.confidence}%). ${result.treatment}`,
+      createdAt: new Date().toISOString(),
+      diagnosisId: result.id,
+    });
+    setSavedToast(true);
+    setTimeout(() => setSavedToast(false), 2000);
   }
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 pb-20">
+      {savedToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-600 text-white text-sm font-medium px-5 py-2.5 rounded-full shadow-lg whitespace-nowrap">
+          영농 일지에 저장되었습니다 ✓
+        </div>
+      )}
       {/* Header */}
       <header className="bg-green-600 text-white px-4 py-4 flex items-center gap-3 sticky top-0 z-10">
         <button
@@ -222,6 +324,92 @@ export default function Diagnosis() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* NCPMS 공식 정보 카드 */}
+        {result && !isAnalyzing && result.id !== 'error' && (ncpmsLoading || ncpmsData) && (
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-blue-50">
+              <span className="text-base">🏛️</span>
+              <h3 className="text-sm font-bold text-blue-800">NCPMS 공식 정보</h3>
+              <span className="ml-auto text-xs text-blue-500 font-medium">농촌진흥청</span>
+            </div>
+
+            {ncpmsLoading ? (
+              <div className="flex items-center gap-3 p-4">
+                <div className="w-4 h-4 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin flex-shrink-0" />
+                <p className="text-sm text-gray-500">NCPMS 데이터베이스 조회 중...</p>
+              </div>
+            ) : ncpmsData ? (
+              <div className="p-4 space-y-3">
+                {/* 병해 이름 */}
+                <div>
+                  <p className="text-base font-bold text-gray-900">{ncpmsData.sickNameKor}</p>
+                  {ncpmsData.sickNameEng && (
+                    <p className="text-xs text-gray-400 mt-0.5 italic">{ncpmsData.sickNameEng}</p>
+                  )}
+                  {ncpmsData.cropName && (
+                    <span className="inline-block mt-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                      {ncpmsData.cropName}
+                    </span>
+                  )}
+                </div>
+
+                {/* 발생 조건 */}
+                {ncpmsData.developmentCondition && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 mb-1">발생 조건</p>
+                    <p className="text-sm text-gray-700 leading-relaxed">
+                      {stripHtml(ncpmsData.developmentCondition).slice(0, 200)}
+                      {ncpmsData.developmentCondition.length > 200 && '…'}
+                    </p>
+                  </div>
+                )}
+
+                {/* 증상 */}
+                {ncpmsData.symptoms && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 mb-1">증상</p>
+                    <p className="text-sm text-gray-700 leading-relaxed">
+                      {stripHtml(ncpmsData.symptoms).slice(0, 200)}
+                      {ncpmsData.symptoms.length > 200 && '…'}
+                    </p>
+                  </div>
+                )}
+
+                {/* 방제 방법 */}
+                {ncpmsData.preventionMethod && (
+                  <div className="border-l-4 border-blue-400 pl-3">
+                    <p className="text-xs font-semibold text-blue-700 mb-1">공식 방제법</p>
+                    <p className="text-sm text-gray-700 leading-relaxed">
+                      {stripHtml(ncpmsData.preventionMethod).slice(0, 300)}
+                      {ncpmsData.preventionMethod.length > 300 && '…'}
+                    </p>
+                  </div>
+                )}
+
+                {/* 사진 */}
+                {ncpmsData.imageList.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 mb-2">참고 사진</p>
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {ncpmsData.imageList.slice(0, 4).map((img, i) => (
+                        <div key={i} className="flex-shrink-0">
+                          <img
+                            src={img.image}
+                            alt={img.imageTitle}
+                            className="w-20 h-20 object-cover rounded-lg"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                          <p className="text-xs text-gray-400 mt-0.5 w-20 truncate">{img.imageTitle}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : null}
           </div>
         )}
 

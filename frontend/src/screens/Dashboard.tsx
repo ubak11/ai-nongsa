@@ -13,6 +13,27 @@ import {
 import { DailyTask, WeatherData, PestRisk } from '../types';
 import { mockWeather, mockTasks, mockPestRisk } from '../utils/mockData';
 
+function wmoCondition(code: number): WeatherData['condition'] {
+  if (code <= 1) return 'sunny';
+  if (code <= 3 || (code >= 45 && code <= 48)) return 'cloudy';
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'cloudy';
+  return 'cloudy';
+}
+
+function wmoText(code: number): string {
+  if (code === 0) return '맑음';
+  if (code === 1) return '주로 맑음';
+  if (code === 2) return '구름 조금';
+  if (code === 3) return '흐림';
+  if (code >= 45 && code <= 48) return '안개';
+  if (code >= 51 && code <= 57) return '이슬비';
+  if (code >= 61 && code <= 67) return '비';
+  if (code >= 71 && code <= 77) return '눈';
+  if (code >= 80 && code <= 82) return '소나기';
+  if (code >= 95) return '천둥번개';
+  return '흐림';
+}
+
 // ── Toast ────────────────────────────────────────────────────────────────────
 
 interface ToastProps {
@@ -70,8 +91,15 @@ const RiskDots: React.FC<{ level: number }> = ({ level }) => (
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
-const Dashboard: React.FC = () => {
-  const weather: WeatherData = mockWeather;
+interface Props {
+  province: string;
+  district: string;
+  farmerName: string;
+}
+
+const Dashboard: React.FC<Props> = ({ province, district, farmerName }) => {
+  const [weather, setWeather] = useState<WeatherData>({ ...mockWeather, location: `${province} ${district}` });
+  const [weatherLoading, setWeatherLoading] = useState(false);
   const pestRisk: PestRisk = mockPestRisk;
 
   const [tasks, setTasks] = useState<DailyTask[]>(() =>
@@ -79,6 +107,45 @@ const Dashboard: React.FC = () => {
   );
   const [toastVisible, setToastVisible] = useState(false);
   const [toastTimer, setToastTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchWeather() {
+      setWeatherLoading(true);
+      try {
+        const geoRes = await fetch(
+          `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(district)}&count=1&language=ko&country_code=KR`
+        );
+        const geoData = await geoRes.json();
+        if (!geoData.results?.[0]) return;
+        const { latitude, longitude } = geoData.results[0];
+
+        const wxRes = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code&timezone=Asia%2FSeoul`
+        );
+        const wxData = await wxRes.json();
+        const c = wxData.current;
+
+        if (!cancelled) {
+          setWeather({
+            temperature: Math.round(c.temperature_2m),
+            humidity: c.relative_humidity_2m,
+            windSpeed: Math.round(c.wind_speed_10m * 10) / 10,
+            condition: wmoCondition(c.weather_code),
+            conditionText: wmoText(c.weather_code),
+            location: `${province} ${district}`,
+            date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' }),
+          });
+        }
+      } catch {
+        if (!cancelled) setWeather(prev => ({ ...prev, location: `${province} ${district}` }));
+      } finally {
+        if (!cancelled) setWeatherLoading(false);
+      }
+    }
+    fetchWeather();
+    return () => { cancelled = true; };
+  }, [province, district]);
 
   const showToast = () => {
     if (toastTimer) clearTimeout(toastTimer);
@@ -118,7 +185,7 @@ const Dashboard: React.FC = () => {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-green-100 text-sm font-medium">ai 농사</p>
-            <h1 className="text-white text-xl font-bold mt-0.5">김지훈 농부</h1>
+            <h1 className="text-white text-xl font-bold mt-0.5">{farmerName} 농부</h1>
           </div>
           <button className="relative p-2 rounded-full bg-white/20 active:bg-white/30 transition-colors">
             <Bell size={22} className="text-white" />
@@ -132,7 +199,10 @@ const Dashboard: React.FC = () => {
         <div className="bg-white rounded-2xl p-4 shadow-sm">
           <div className="flex items-start justify-between mb-3">
             <div>
-              <p className="text-gray-500 text-xs">{weather.location}</p>
+              <p className="text-gray-500 text-xs flex items-center gap-1">
+                {weather.location}
+                {weatherLoading && <span className="inline-block w-2.5 h-2.5 border-2 border-gray-300 border-t-green-500 rounded-full animate-spin" />}
+              </p>
               <p className="text-gray-400 text-xs mt-0.5">{today}</p>
             </div>
             <WeatherIcon condition={weather.condition} />
