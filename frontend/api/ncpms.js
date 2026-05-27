@@ -19,10 +19,11 @@ export default async function handler(req, res) {
       `https://ncpms.rda.go.kr/npmsAPI/service?apiKey=${apiKey}&serviceCode=SVC01&sickNameKor=${encodeURIComponent(diseaseName)}&startCursor=1&endCursor=5`
     );
     const searchData = await searchRes.json();
+    console.log('NCPMS SVC01 raw:', JSON.stringify(searchData).slice(0, 300));
     const items = searchData.service?.list ?? [];
 
     if (items.length === 0) {
-      return res.status(200).json(null);
+      return res.status(200).json({ _debug: searchData.service?.errorCode ?? 'no_list' });
     }
 
     const { sickKey, cropName, sickNameKor, sickNameEng, thumbImg } = items[0];
