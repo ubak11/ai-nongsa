@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/ncpms.js": {
+      "regions": ["icn1"]
+    },
+    "api/diagnose.js": {
+      "regions": ["icn1"]
+    }
+  }
+}
