@@ -24,8 +24,8 @@ function App() {
     switch (activeTab) {
       case 'home': return <Dashboard province={farmSettings.province} district={farmSettings.district} farmerName={farmSettings.farmerName} />;
       case 'diagnosis': return <Diagnosis onSaveToLog={handleAddLogEntry} />;
-      case 'log': return <FarmLog entries={logEntries} />;
-      case 'report': return <Report />;
+      case 'log': return <FarmLog entries={logEntries} onAddEntry={handleAddLogEntry} />;
+      case 'report': return <Report settings={farmSettings} logEntries={logEntries} />;
       case 'settings': return <Settings settings={farmSettings} onSave={setFarmSettings} />;
     }
   };

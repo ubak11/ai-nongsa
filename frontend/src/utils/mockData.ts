@@ -126,7 +126,7 @@ export const mockFarmSettings: FarmSettings = {
   district: '논산시',
   cropTypes: ['strawberry', 'tomato'],
   cropVariety: '설향',
-  plantingDate: '2024-09-15',
+  plantingDate: '2025-09-15',
   greenhouseArea: 1000,
 };
 
